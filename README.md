@@ -2,7 +2,40 @@
 
 Stdio Model Context Protocol server for [pptx.dev](https://www.pptx.dev). Acts as a thin local proxy to the hosted MCP server at `https://mcp.pptx.dev`, so MCP clients (Claude Desktop, Cursor, etc.) can invoke pptx tools over stdio.
 
-> **Status:** Phase 1 scaffold. Not yet published to npm. Full install / configuration docs land in Phase 4 alongside the [`pptx.dev/mcp`](https://www.pptx.dev/mcp) install page.
+> Full install / configuration docs land in Phase 4 alongside the [`pptx.dev/mcp`](https://www.pptx.dev/mcp) install page. The snippets below cover the basics.
+
+## Install / run
+
+Run the latest version directly with `npx`:
+
+```sh
+PPTX_API_KEY=sk_live_... npx pptx-mcp
+```
+
+Or install globally:
+
+```sh
+npm install -g pptx-mcp
+PPTX_API_KEY=sk_live_... pptx-mcp
+```
+
+The binary speaks MCP over stdio — point any MCP client at it.
+
+### Claude Desktop
+
+Add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "pptx": {
+      "command": "npx",
+      "args": ["-y", "pptx-mcp"],
+      "env": { "PPTX_API_KEY": "sk_live_..." }
+    }
+  }
+}
+```
 
 ## How it works
 

@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "pptx-mcp": "./dist/cli.js"
+    "pptx-mcp": "dist/cli.js"
   },
   "files": [
     "dist",
