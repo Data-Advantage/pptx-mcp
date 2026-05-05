@@ -1,11 +1,45 @@
-// Local verification harness — spawns dist/cli.js, drives stdio MCP traffic,
-// and prints tools/list + a validate_opf round-trip. Not shipped in npm package.
 import { spawn } from "node:child_process";
+import { createServer } from "node:http";
 import { createInterface } from "node:readline";
+
+const api = createServer(async (req, res) => {
+  const url = new URL(req.url ?? "/", "http://127.0.0.1");
+  if (req.method !== "POST" || url.pathname !== "/v1/validate") {
+    res.writeHead(404, { "content-type": "application/json" });
+    res.end(
+      JSON.stringify({ error: { code: "not_found", message: "not found" } }),
+    );
+    return;
+  }
+
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const body = Buffer.concat(chunks).toString("utf8");
+  const document = JSON.parse(body);
+  res.writeHead(200, { "content-type": "application/json" });
+  res.end(
+    JSON.stringify({
+      valid: document?.$schema === "https://pptx.dev/schema/opf/v1",
+      errors: [],
+      warnings: [],
+    }),
+  );
+});
+
+await new Promise((resolve) => api.listen(0, "127.0.0.1", resolve));
+const address = api.address();
+if (!address || typeof address === "string") {
+  throw new Error("verify: failed to start local mock API");
+}
+const apiBaseUrl = `http://127.0.0.1:${address.port}`;
 
 const child = spawn(process.execPath, ["dist/cli.js"], {
   stdio: ["pipe", "pipe", "inherit"],
-  env: process.env,
+  env: {
+    ...process.env,
+    PPTX_API_BASE_URL: apiBaseUrl,
+    PPTX_API_KEY: "verify-token",
+  },
 });
 
 const rl = createInterface({ input: child.stdout });
@@ -35,8 +69,15 @@ function send(method, params, id) {
 }
 
 function request(method, params, id) {
-  return new Promise((resolve) => {
-    pending.set(id, resolve);
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error(`verify: timed out waiting for ${method}`));
+    }, 5000);
+    pending.set(id, (msg) => {
+      clearTimeout(timeout);
+      resolve(msg);
+    });
     send(method, params, id);
   });
 }
@@ -66,6 +107,16 @@ try {
   const list = await request("tools/list", {}, 2);
   const names = list.result?.tools?.map((t) => t.name) ?? [];
   console.log("tools/list:", names);
+  for (const expected of [
+    "generate_presentation",
+    "parse_pptx",
+    "validate_opf",
+    "render_format",
+  ]) {
+    if (!names.includes(expected)) {
+      throw new Error(`verify: missing tool ${expected}`);
+    }
+  }
 
   const call = await request(
     "tools/call",
@@ -76,5 +127,18 @@ try {
   console.log("validate_opf:", text.slice(0, 400));
 } finally {
   child.stdin.end();
-  await new Promise((r) => child.on("exit", r));
+  const exit = await new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      resolve("timeout");
+    }, 5000);
+    child.on("exit", (code) => {
+      clearTimeout(timeout);
+      resolve(code);
+    });
+  });
+  await new Promise((resolve) => api.close(resolve));
+  if (exit === "timeout") {
+    throw new Error("verify: MCP server did not exit after stdin closed");
+  }
 }

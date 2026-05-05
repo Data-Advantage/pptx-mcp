@@ -1,12 +1,29 @@
 {
   "name": "pptx-mcp",
   "version": "0.1.0",
-  "description": "Stdio MCP server for pptx.dev — thin proxy to the remote streamable-HTTP server at mcp.pptx.dev.",
+  "description": "Official Model Context Protocol server for pptx.dev — generate, parse, validate, and render presentations through the pptx.dev REST API.",
   "license": "MIT",
   "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "bin": {
     "pptx-mcp": "dist/cli.js"
   },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "require": "./dist/server.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
   "files": [
     "dist",
     "README.md",
@@ -15,11 +32,18 @@
   "engines": {
     "node": ">=20"
   },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "start": "node dist/cli.js"
+    "clean": "rm -rf dist",
+    "start": "node dist/cli.js",
+    "verify": "node scripts/verify.mjs",
+    "prepublishOnly": "pnpm run clean && pnpm run build && pnpm run verify"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
